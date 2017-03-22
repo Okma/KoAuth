@@ -1,4 +1,4 @@
-#Two Factor Authentication Server/Client
+# Two Factor Authentication
 
 ## General Idea
 Server generates key for user. Key is sent to user. Key expires after X amount of time.
@@ -10,8 +10,8 @@ Server generates and texts user a validation code.
 Server generates code; sends to user via HTTP to client-side app.
 Client-side app pairs with account via some serialization code bound to account.
 
-##Server 
+## Server 
 Written in Go.
 
-##Client
+## Client
 Hybrid mobile application written with Ionic/Framework7. Packaged via Phonegap/Cordova?
