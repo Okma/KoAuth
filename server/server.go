@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	mgo "gopkg.in/mgo.v2"
+
 	"github.com/BurntSushi/toml"
 )
 
@@ -24,11 +26,13 @@ var clientMap = make(map[string]*ClientData)
 // Config reference
 var config Config
 
+// Configuration struct for TOML parsing.
 type Config struct {
 	TimeoutSeconds int `toml: timeoutSeconds`
 	NumKeyDigits   int `toml: numKeyDigits`
 }
 
+// Struct for containing client data for ease of access.
 type ClientData struct {
 	TimeRemaining time.Duration
 	Key           string
@@ -110,6 +114,13 @@ func main() {
 		return
 	}
 	fmt.Printf("Configuration parsed successfully:\n -Keys will generate with %d digits.\n -Keys will expire in %d seconds.\n", config.NumKeyDigits, config.TimeoutSeconds)
+
+	// Connect to Mongo database.
+	session, err := mgo.Dial("mongodb://TestUser:testpass@ds139370.mlab.com:39370/tfa")
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
 
 	// Start server.
 	http.HandleFunc("/", handler)

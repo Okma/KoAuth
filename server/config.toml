@@ -1,2 +1,4 @@
+# Number of digts to generate for the key.
 numKeyDigits = 6
+# Amount of seconds before key expires.
 timeoutSeconds = 30
