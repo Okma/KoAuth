@@ -8,6 +8,7 @@ TBA
 Begin by downloading the zipped repo.
 
 To run and/or modify the Go server, you'll need [Go](https://golang.org/).
+
 To run and/or modify the Android client code, you'll need [Android Studio](https://developer.android.com/studio/index.html).
 
 ## Usage
