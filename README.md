@@ -1,5 +1,5 @@
 # KoAuth
-Robust embeddable two factor authentication for any application service.
+Robust embeddable two factor authentication framework.
 
 ## Features
 TBA
