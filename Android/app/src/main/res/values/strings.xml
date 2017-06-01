@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">KoAuth</string>
+    <string name="settings_string">Settings</string>
+    <string name="no_serial_linked">Add serial</string>
+    <string name="serial_format">Serial Id : %s</string>
+    <string name="enter_serial_hint">Enter serial number</string>
+
+    <string name="dialog_positive_text">Add</string>
+    <string name="dialog_negative_text">Cancel</string>
+</resources>
