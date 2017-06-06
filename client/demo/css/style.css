@@ -1,0 +1,18 @@
+body {
+    height: 100%;
+    background: #486785;
+    color: white;
+}
+
+body p {
+    font-size: 25px;
+}
+
+.page-header {
+    text-align: center;
+    font-size: 50px;
+}
+.center {
+    text-align: center;
+    margin: 75px auto;
+}
