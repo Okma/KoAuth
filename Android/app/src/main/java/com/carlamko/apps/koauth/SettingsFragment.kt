@@ -1,14 +1,18 @@
 package com.carlamko.apps.koauth
 
 import android.app.Fragment
+import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
+import android.preference.PreferenceManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import kotlinx.android.synthetic.main.fragment_settings.view.*
 import com.carlamko.apps.koauth.ui.AddSerialDialog
+import com.carlamko.apps.koauth.util.NetworkUtility
 
 class SettingsFragment : Fragment(), View.OnClickListener {
-
     private val FRAGMENT_ID :Int = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -18,9 +22,42 @@ class SettingsFragment : Fragment(), View.OnClickListener {
     override fun onCreateView(inflater: LayoutInflater?, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val view: View = inflater!!.inflate(R.layout.fragment_settings, container, false)
 
-        //view.findViewById(R.id.tv_serial)
-
+        val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(activity)
+        val currentSerial = sharedPreferences.getString(getString(R.string.pref_serial_key), null)
+        if(currentSerial != null) {
+            view.tv_serial.text = currentSerial
+            view.fab_add_serial.visibility = View.GONE
+        } else {
+            view.fab_add_serial.setOnClickListener(this)
+        }
         return view
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        when(requestCode) {
+            FRAGMENT_ID -> {
+                val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(activity)
+
+                // Fetch the new serial value.
+                val serialInput: String? = sharedPreferences.getString(getString(R.string.pref_serial_key), null)
+
+                if(serialInput != null) {
+                    // Check that new serial value is valid.
+                    NetworkUtility.checkSerial(activity, serialInput,
+                            {
+                                response ->
+                                view.tv_serial.text = serialInput
+                            },
+                            {
+                                error ->
+                                view.tv_serial.text = "Fail: ${error.message}"
+                            })
+
+                    // @TODO: Remove this.
+                    sharedPreferences.edit().remove(getString(R.string.pref_serial_key)).apply()
+                }
+            }
+        }
     }
 
     override fun onClick(v: View?) {

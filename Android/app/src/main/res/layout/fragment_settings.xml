@@ -20,8 +20,7 @@
             android:drawablePadding="10dp"
             android:padding="16dp"
             android:textSize="22sp"
-            tools:visibility="gone"
-            tools:text="@string/serial_format" />
+            android:text="@string/no_serial_added" />
 
     </LinearLayout>
 

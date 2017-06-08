@@ -7,4 +7,7 @@
 
     <string name="dialog_positive_text">Add</string>
     <string name="dialog_negative_text">Cancel</string>
+
+    <string name="pref_serial_key" translatable="false">pref_serial_key</string>
+    <string name="no_serial_added">No Serial Added!</string>
 </resources>

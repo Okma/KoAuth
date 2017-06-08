@@ -10,6 +10,7 @@
         android:id="@+id/settings_fragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_marginTop="?actionBarSize"
         android:name="com.carlamko.apps.koauth.SettingsFragment"/>
 
     <android.support.v7.widget.Toolbar

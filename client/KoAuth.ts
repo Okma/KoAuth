@@ -2,23 +2,37 @@
  * Created by Carl on 6/6/2017.
  */
 
-// Inject jQuery.
-let script = document.createElement('script');
-script.src = 'http://code.jquery.com/jquery-3.2.1.min.js';
-script.type = 'text/javascript';
-script.integrity = "sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=";
-script.crossOrigin = "anonymous";
-document.getElementsByTagName('head')[0].appendChild(script);
+// Reusable HTTP request object.
+let serverRequest: XMLHttpRequest = new XMLHttpRequest();
 
-// Inject sign up js.
-script = document.createElement('script');
-script.src = 'js/signup.js';
-script.type = 'text/javascript';
-document.getElementsByTagName('head')[0].appendChild(script);
+interface RequestBody {
+    Email: string,
+    DeviceSerial?: string,
+    Serial?: string
+}
 
-// Inject usage js.
-/*
-js = document.createElement('js');
-js.src = '/js/signup.js';
-js.type = 'text/javascript';
-document.getElementsByTagName('head')[0].appendChild(js);*/
+/* Call to register given user ID with KoAuth. */
+function enableKoAuth(request: RequestBody) {
+    // @TODO: Change to your server's IP here.
+    serverRequest.open("POST", "http://localhost:8080/user/new", true);
+    serverRequest.setRequestHeader("Content-Type", "application/json");
+    serverRequest.addEventListener("readystatechange", onEnableRequestResponse, false);
+    serverRequest.send(JSON.stringify(request));
+}
+
+function onEnableRequestResponse(e) {
+    if (serverRequest.readyState === 4) {
+        if(serverRequest.status === 200) {
+            const response = JSON.parse(serverRequest.response);
+            document.getElementById("serial").innerText = "Serial: " + response.Serial;
+            alert(JSON.stringify(response));
+        } else {
+            alert(e.toString());
+        }
+    }
+}
+
+function onSubmit() {
+    let input = (<HTMLInputElement>document.getElementById("input")).value;
+    alert(input);
+}

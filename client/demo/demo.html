@@ -12,8 +12,14 @@
         <h1 class="page-header">KoAuth Client Demo</h1>
         <div class="center">
             <p>Test User Id: 1342523123</p>
-            <button class="btn btn-primary" onclick="enableKoAuth({userId: 1342523123})">Demo Enable Access</button>
-            <button class="btn btn-primary" onclick="enableKoAuth('test')">Demo Enable Access</button>
+            <button class="btn btn-primary" onclick="enableKoAuth({Email: 'test@mail.com'})">Demo Enable Access</button>
+            <p id ="serial"></p>
+        </div>
+        <div class="center">
+            <p>Enter code sent to mobile:</p>
+            <input id="input" type="text">
+            <span><button class="btn btn-success" onclick="onSubmit()">Submit</button></span>
+            <p id = "submit_result"></p>
         </div>
     </div>
 </body>

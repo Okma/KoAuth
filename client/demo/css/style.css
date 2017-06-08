@@ -16,3 +16,7 @@ body p {
     text-align: center;
     margin: 75px auto;
 }
+
+#input {
+    color: black;
+}
