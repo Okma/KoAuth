@@ -8,6 +8,13 @@ import android.os.Build
 
 object DeviceUtility {
 
-    val deviceSerial: String
-        get() = Build.SERIAL
+    private val TEST_SERIAL: String = "testserial123"
+
+    fun getDeviceSerial(): String {
+        if(!Build.SERIAL.isEmpty() && Build.SERIAL != "unknown") {
+            return Build.SERIAL
+        } else {
+            return TEST_SERIAL
+        }
+    }
 }

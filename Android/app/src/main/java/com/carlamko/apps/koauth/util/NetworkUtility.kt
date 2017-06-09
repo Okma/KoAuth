@@ -33,7 +33,7 @@ object NetworkUtility {
     fun checkSerial(context: Context, serial: String, successCallback: (JSONObject) -> Unit, failureCallback: (VolleyError) -> Unit) {
         val json: JSONObject = JSONObject()
         json.put("serial", serial)
-        json.put("device_serial", DeviceUtility.deviceSerial)
+        json.put("deviceserial", DeviceUtility.getDeviceSerial())
 
         getRequestQueue(context).add(object: JsonObjectRequest(Request.Method.POST, CHECK_SERIAL_URL,
                 json,

@@ -15,7 +15,7 @@ function onEnableRequestResponse(e) {
     if (serverRequest.readyState === 4) {
         if (serverRequest.status === 200) {
             var response = JSON.parse(serverRequest.response);
-            document.getElementById("serial").innerText = "Serial: " + response.Serial;
+            document.getElementById("serial").innerText = "Pair mobile with serial: " + response.Serial;
         }
         else {
             console.log(e);
