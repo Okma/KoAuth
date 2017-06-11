@@ -23,14 +23,16 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-// Generic mutex for locking map write access.
-var mutex = &sync.Mutex{}
+// Generic keyLock for locking map write access.
+var serverLock = &sync.Mutex{}
 
 // Maps clientID to their data.
-var clientMap = make(map[string]*ClientData)
+var connectionFrequencyMap = make(map[string]int)
 
 // Database session for data manipulation.
 var database * mgo.Database
+
+var userCollection * mgo.Collection
 
 // Config reference
 var config Config
@@ -38,10 +40,15 @@ var config Config
 // DBconfig reference
 var DBconfig DBConfig
 
+var serverSeed string
+
+var serialTimeRemaining int
+
 // Configuration struct for TOML parsing.
 type Config struct {
-	TimeoutSeconds int
+	ServerSerialRefreshSeconds int
 	NumKeyDigits   int
+	NumSerialDigits int
 }
 
 // DB configuration struct.
@@ -49,9 +56,9 @@ type DBConfig struct {
 	DBConnectionURI string
 }
 
-// Struct for containing client data for ease of access.
-type ClientData struct {
-	TimeRemaining time.Duration
+// KeyData packages relevant key data for parsing and transmittal to mobile.
+type KeyData struct {
+	ServerTimeRemaining int
 	Key           string
 }
 
@@ -61,6 +68,7 @@ type User struct {
 	DeviceSerial string
 }
 
+const MAX_CONNECTIONS_PER_MIN = 5
 const usableCharacters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 func generateRand() (r * rand.Rand) {
@@ -71,48 +79,80 @@ func generateRand() (r * rand.Rand) {
 	return
 }
 
-func generateKey() (key string) {
-	// Create a random object.
-	r:= generateRand()
-
-	// Generate random numbers for the auth key.
-	for i := 0; i < config.NumKeyDigits; i++ {
-		key += strconv.Itoa(r.Intn(10))
+func generateKey(userSerial string) (key string) {
+	var serialSum = 0
+	for i := 0; i < config.NumSerialDigits; i++ {
+		// Modulus by the length of the serial is a safety precaution in case the server serial's length is
+		//   changed, as this would cause a discrepancy between user and server serial lengths.
+		serialSum += int(userSerial[i % len(userSerial)]) + int(serverSeed[i % len(serverSeed)])
 	}
-	return
+
+	var buffer bytes.Buffer
+	for i := 0; i < config.NumKeyDigits; i++ {
+		buffer.WriteString(string(serialSum / (i + 1) % 10))
+	}
+
+	return buffer.String()
 }
 
-func countdown(clientID string) {
+func generateSerial() (serial string) {
+	r := generateRand()
+	var buffer bytes.Buffer
+	for i := 0; i < config.NumSerialDigits; i++ {
+		buffer.WriteByte(usableCharacters[r.Intn(len(usableCharacters))])
+	}
+
+	return buffer.String()
+}
+
+func startCountdown() {
 	// Create new ticker to count down for this IP every second.
 	ticker := time.NewTicker(time.Second)
 
+	// Set current time remaining to 0 so that a seed is generated at startup.
+	serialTimeRemaining = 0
+
 	// Create a goroutine to update time remaining.
-	go func(clientID string) {
-
-		// Called every second.
+	go func() {
+		// Update time remaining every second.
 		for range ticker.C {
-			// Maps aren't thread-safe. Need to lock to ensure no write corruption.
-			mutex.Lock()
-			clientMap[clientID].TimeRemaining -= time.Second
-			mutex.Unlock()
+			serverLock.Lock()
+			serialTimeRemaining -= 1
+			serverLock.Unlock()
 
-			// Time has expired.
-			if clientMap[clientID].TimeRemaining <= time.Duration(0) {
-				// Stop ticker.
-				ticker.Stop()
-				// Remove remote IP entry from maps.
-				mutex.Lock()
-				delete(clientMap, clientID)
-				mutex.Unlock()
+			// Refresh time has expired.
+			if serialTimeRemaining <= 0 {
+				serverLock.Lock()
 
-				fmt.Printf("Client %s key has expired.\n", clientID)
-			} else {
-				// Log for testing.
-				fmt.Printf("Client %s has %f seconds remaining.\n", clientID, clientMap[clientID].TimeRemaining.Seconds())
+				// Generate new sever serial.
+				serverSeed = generateSerial()
+
+				// Reset connection limiter map.
+				connectionFrequencyMap = make(map[string]int)
+
+				// Reset refresh time to max.
+				serialTimeRemaining = config.ServerSerialRefreshSeconds
+				serverLock.Unlock()
+
+				fmt.Printf("New server serial generated: %s.\n", serverSeed)
 			}
 		}
-	}(clientID)
+	}()
 
+}
+
+func parseRequestBodyToUser(writer http.ResponseWriter, request *http.Request) (newUser *User){
+	// Attempt to decode request body into User interface.
+	err := json.NewDecoder(request.Body).Decode(&newUser)
+	switch {
+	case err == io.EOF:
+		http.Error(writer, "No body provided!", 400)
+		return
+	case err!= nil:
+		http.Error(writer, err.Error(), 400)
+		panic(err)
+	}
+	return
 }
 
 func checkSerialHandler(writer http.ResponseWriter, request *http.Request) {
@@ -120,6 +160,35 @@ func checkSerialHandler(writer http.ResponseWriter, request *http.Request) {
 	dump, _ := httputil.DumpRequest(request, true)
 	fmt.Println(string(dump))
 
+	// Parse request body to user interface.
+	user := parseRequestBodyToUser(writer, request)
+
+	// Create query to find the user(s) with matching serial.
+	query := userCollection.Find(bson.M{"serial" : user.Serial})
+
+	// Check that there is at least one user with the given serial.
+	if count, _ := query.Count(); count == 0 {
+		errorMsg := fmt.Sprintf("User with serial %s does not exist!", user.Serial)
+		http.Error(writer, errorMsg, 400)
+		fmt.Println(errorMsg)
+		return
+	}
+
+	// Update database entry with received device serial.
+	userCollection.Update(bson.M{"serial" : user.Serial}, bson.M{"$set" : bson.M{"deviceserial": user.DeviceSerial}})
+
+	// Read updated user.
+	var currentUserEntry User = User{}
+	err := query.One(&currentUserEntry)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(currentUserEntry)
+
+	// Write updated user back to client.
+	buffer := new(bytes.Buffer)
+	json.NewEncoder(buffer).Encode(currentUserEntry)
+	writer.Write(buffer.Bytes())
 }
 
 func newUserHandler(writer http.ResponseWriter, request *http.Request) {
@@ -127,65 +196,58 @@ func newUserHandler(writer http.ResponseWriter, request *http.Request) {
 	dump, _ := httputil.DumpRequest(request, true)
 	fmt.Println(string(dump))
 
-	var newUser User
-	// Attempt to decode request body into User interface.
-	err := json.NewDecoder(request.Body).Decode(&newUser)
-	switch {
-	case err == io.EOF:
-		http.Error(writer, "No body provided to /user/new route!", 400)
-		return
-	case err!= nil:
-		http.Error(writer, err.Error(), 400)
-		panic(err)
-	}
-
-	userCollection := database.C("users")
+	// Parse request body to user interface.
+	user := parseRequestBodyToUser(writer, request)
 
 	// User already exists, ignore insert.
-	if count, err := userCollection.Find(bson.M{"email" : newUser.Email}).Count(); count > 0 || err != nil {
-		errorMsg := fmt.Sprintf("User with email %s already exists!", newUser.Email)
+	if count, err := userCollection.Find(bson.M{"email" : user.Email}).Count(); count > 0 || err != nil {
+		errorMsg := fmt.Sprintf("User with email %s already exists!", user.Email)
 		http.Error(writer, errorMsg, 400)
 		fmt.Println(errorMsg)
 		return
 	}
 
 	// Generate random serial for new user.
-	r := generateRand()
-	var buffer bytes.Buffer
-	for i := 0; i < 12; i++ {
-		buffer.WriteByte(usableCharacters[r.Intn(len(usableCharacters))])
+	user.Serial = generateSerial()
+	fmt.Println(*user)
+
+	err := userCollection.Insert(user)
+	if err != nil {
+		println(err)
 	}
 
-	newUser.Serial = buffer.String()
-	fmt.Println(newUser)
-
-	//err = userCollection.Insert(newUser)
-	//if err != nil {
-	//	println(err)
-	//}
-
-	buffer.Reset()
-	json.NewEncoder(&buffer).Encode(newUser)
+	buffer := new(bytes.Buffer)
+	json.NewEncoder(*buffer).Encode(user)
 	writer.Write(buffer.Bytes())
 }
 
 func handler(writer http.ResponseWriter, request *http.Request) {
 	// Check if client is already mapped.
-	_, bClientExists := clientMap[request.RemoteAddr]
-	fmt.Printf("Incoming request '%s' from %s. \n", request.Method, request.RemoteAddr)
+	connections, bClientExists := connectionFrequencyMap[request.RemoteAddr]
+	fmt.Printf("Incoming request '%s' from %s. Request %d out of %d.\n", request.Method, request.RemoteAddr, connections, MAX_CONNECTIONS_PER_MIN)
 
 	// Only start a new timer if client doesn't already exist.
 	if !bClientExists {
 		// Create new entry in client map.
-		clientMap[request.RemoteAddr] = &ClientData{time.Duration(config.TimeoutSeconds) * time.Second, generateKey()}
-
-		// Set timer for config.TimeoutSeconds seconds.
-		countdown(request.RemoteAddr)
-		fmt.Printf("Client %s has been assigned key %s for %d seconds!\n", request.RemoteAddr, clientMap[request.RemoteAddr].Key, config.TimeoutSeconds)
+		connectionFrequencyMap[request.RemoteAddr] = 1
+	} else {
+		// Increment rate limit for IP.
+		connectionFrequencyMap[request.RemoteAddr] += 1
 	}
 
-	// Write the key back to the source.
-	//writer.Write(*clientMap[request.RemoteAddr])
+	// If not over limit, generate and send key.
+	if connectionFrequencyMap[request.RemoteAddr] <= MAX_CONNECTIONS_PER_MIN {
+		key := generateKey(request.Header.Get("serial"))
+		fmt.Printf("Client %s has been assigned key %s.\n", request.RemoteAddr, key)
+
+		// Encode and write KeyData back to requester.
+		keyData := KeyData{serialTimeRemaining, key}
+		buffer := bytes.Buffer{}
+		json.NewEncoder(&buffer).Encode(keyData)
+		writer.Write(buffer.Bytes())
+	} else {
+		http.Error(writer, "Too many requests received within allotted time limit.", 400)
+	}
 }
 
 func main() {
@@ -194,7 +256,8 @@ func main() {
 		fmt.Printf("Error: %s\n", err)
 		return
 	}
-	fmt.Printf("Configuration parsed successfully:\n -Keys will generate with %d digits.\n -Keys will expire in %d seconds.\n", config.NumKeyDigits, config.TimeoutSeconds)
+	fmt.Printf("Configuration parsed successfully:\n-Serial will generate with %d digits.\n-Keys will generate with %d digits.\n-Server serial will generate every %d seconds.\n",
+		config.NumSerialDigits, config.NumKeyDigits, config.ServerSerialRefreshSeconds)
 
 	// Parse DB config TOML.
 	if _, err := toml.DecodeFile("DBconfig.toml", &DBconfig); err != nil {
@@ -205,12 +268,17 @@ func main() {
 
 	// Connect to Mongo database.
 	dbSession, err := mgo.Dial(DBconfig.DBConnectionURI)
-	defer dbSession.Close()
-
-	database = dbSession.DB("tfa")
 	if err != nil {
 		panic(err)
 	}
+	defer dbSession.Close()
+
+	// Begin server time updater.
+	startCountdown()
+
+	// Assign database references.
+	database = dbSession.DB("tfa")
+	userCollection = database.C("users")
 
 	// Create routes.
 	r := mux.NewRouter()

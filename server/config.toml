@@ -1,4 +1,6 @@
+# Number of digits in serial.
+NumSerialDigits = 12
 # Number of digts to generate for the key.
-numKeyDigits = 6
-# Amount of seconds before key expires.
-timeoutSeconds = 30
+NumKeyDigits = 6
+# Number of seconds between each server serial generation.
+ServerSerialRefreshSeconds = 60

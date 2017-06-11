@@ -46,7 +46,7 @@ class SettingsFragment : Fragment(), View.OnClickListener {
                     // Check that new serial value is valid.
                     NetworkUtility.checkSerial(activity, serialInput,
                             {
-                                response ->
+                                _ ->
                                 view.tv_serial.text = String.format(getString(R.string.serial_format), serialInput)
                                 view.fab_add_serial.visibility = View.GONE
 
@@ -58,9 +58,6 @@ class SettingsFragment : Fragment(), View.OnClickListener {
 
                                 Snackbar.make(view, "Invalid serial!", Snackbar.LENGTH_LONG).show()
                             })
-
-                    // @TODO: Remove this.
-                    sharedPreferences.edit().remove(getString(R.string.pref_serial_key)).apply()
                 }
             }
         }
