@@ -10,7 +10,7 @@ KoAuth is a robust, embeddable two-factor authentication(TFA) framework.
 ## Install
 To run and/or modify the Go server, you'll need [Go](https://golang.org/).
 
-The server requires a database config [TOML](https://github.com/toml-lang/toml) file in the same directory as the server. This file should contain a string field (named as `DBConnectionURI`) containg the URI that allows the MongoDB driver to connect to a MongoDB database.
+The server requires a database config [TOML](https://github.com/toml-lang/toml) file in the same directory as the server. This file should contain a string field (named as `DBConnectionURI`) containing the URI that allows the MongoDB driver to connect to a MongoDB database.
 
 The server also contains a config TOML, which allows you to customize:
 * Key life
